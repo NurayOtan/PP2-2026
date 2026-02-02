@@ -28,7 +28,7 @@ class myclass():
     return 0
 
 myobj = myclass()
-print(bool(myobj)) #False
+print(bool(myobj)) #True
 
 
 
