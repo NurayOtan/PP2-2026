@@ -1,111 +1,272 @@
 import pygame
 from datetime import datetime
 
-WIDTH = 800
-HEIGHT = 600
-TOOLBAR = 80
-CANVAS_H = HEIGHT - TOOLBAR
 
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GRAY = (220, 220, 220)
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((900, 650))
+    clock = pygame.time.Clock()
+
+    radius = 5
+    color_mode = 'black'
+    tool = 'pen'
+
+    points = []
+    drawing = False
+    start_pos = None
+    current_pos = None
+
+    text_active = False
+    text_pos = None
+    text_value = ""
+
+    font = pygame.font.SysFont("Verdana", 16)
+    text_font = pygame.font.SysFont("Arial", 24)
+
+    canvas = pygame.Surface((900, 650))
+    canvas.fill((255, 255, 255))
+
+    while True:
+        pressed = pygame.key.get_pressed()
+
+        alt_held = pressed[pygame.K_LALT] or pressed[pygame.K_RALT]
+        ctrl_held = pressed[pygame.K_LCTRL] or pressed[pygame.K_RCTRL]
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_w and ctrl_held:
+                    return
+                if event.key == pygame.K_F4 and alt_held:
+                    return
+
+                if event.key == pygame.K_s and ctrl_held:
+                    saveCanvas(canvas)
+
+                elif text_active:
+                    if event.key == pygame.K_RETURN:
+                        text_image = text_font.render(text_value, True, getColor(color_mode))
+                        canvas.blit(text_image, text_pos)
+                        text_active = False
+                        text_value = ""
+
+                    elif event.key == pygame.K_ESCAPE:
+                        text_active = False
+                        text_value = ""
+
+                    elif event.key == pygame.K_BACKSPACE:
+                        text_value = text_value[:-1]
+
+                    else:
+                        text_value += event.unicode
+
+                else:
+                    if event.key == pygame.K_ESCAPE:
+                        return
+
+                    # Color selection
+                    if event.key == pygame.K_1:
+                        color_mode = 'black'
+                    elif event.key == pygame.K_2:
+                        color_mode = 'red'
+                    elif event.key == pygame.K_3:
+                        color_mode = 'green'
+                    elif event.key == pygame.K_4:
+                        color_mode = 'blue'
+
+                    # Brush size levels for TSIS2
+                    elif event.key == pygame.K_5:
+                        radius = 2
+                    elif event.key == pygame.K_6:
+                        radius = 5
+                    elif event.key == pygame.K_7:
+                        radius = 10
+
+                    # Tool selection
+                    elif event.key == pygame.K_p:
+                        tool = 'pen'
+                    elif event.key == pygame.K_e:
+                        tool = 'eraser'
+                    elif event.key == pygame.K_c:
+                        tool = 'circle'
+                    elif event.key == pygame.K_t:
+                        tool = 'rectangle'
+                    elif event.key == pygame.K_s:
+                        tool = 'square'
+                    elif event.key == pygame.K_r:
+                        tool = 'right_triangle'
+                    elif event.key == pygame.K_q:
+                        tool = 'equilateral_triangle'
+                    elif event.key == pygame.K_h:
+                        tool = 'rhombus'
+                    elif event.key == pygame.K_l:
+                        tool = 'line'
+                    elif event.key == pygame.K_f:
+                        tool = 'fill'
+                    elif event.key == pygame.K_a:
+                        tool = 'text'
+
+                    # Old brush size control
+                    elif event.key == pygame.K_EQUALS or event.key == pygame.K_PLUS:
+                        radius = min(50, radius + 1)
+                    elif event.key == pygame.K_MINUS:
+                        radius = max(1, radius - 1)
+
+                    # Clear canvas
+                    elif event.key == pygame.K_x:
+                        canvas.fill((255, 255, 255))
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    if event.pos[1] < 80:
+                        continue
+
+                    if tool == 'fill':
+                        floodFill(canvas, event.pos, getColor(color_mode))
+                        continue
+
+                    if tool == 'text':
+                        text_active = True
+                        text_pos = event.pos
+                        text_value = ""
+                        continue
+
+                    drawing = True
+                    start_pos = event.pos
+                    current_pos = event.pos
+
+                    if tool == 'pen' or tool == 'eraser':
+                        points = points + [event.pos]
+                        points = points[-256:]
+
+            if event.type == pygame.MOUSEMOTION:
+                if drawing:
+                    current_pos = event.pos
+
+                    if tool == 'pen' or tool == 'eraser':
+                        position = event.pos
+                        points = points + [position]
+                        points = points[-256:]
+
+            if event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1 and start_pos is not None:
+                    drawing = False
+
+                    if tool == 'rectangle':
+                        rect = makeRect(start_pos, event.pos)
+                        pygame.draw.rect(canvas, getColor(color_mode), rect, radius)
+
+                    elif tool == 'circle':
+                        center, rad = makeCircle(start_pos, event.pos)
+                        pygame.draw.circle(canvas, getColor(color_mode), center, rad, radius)
+
+                    elif tool == 'square':
+                        square = makeSquare(start_pos, event.pos)
+                        pygame.draw.rect(canvas, getColor(color_mode), square, radius)
+
+                    elif tool == 'right_triangle':
+                        points_triangle = makeRightTriangle(start_pos, event.pos)
+                        pygame.draw.polygon(canvas, getColor(color_mode), points_triangle, radius)
+
+                    elif tool == 'equilateral_triangle':
+                        points_triangle = makeEquilateralTriangle(start_pos, event.pos)
+                        pygame.draw.polygon(canvas, getColor(color_mode), points_triangle, radius)
+
+                    elif tool == 'rhombus':
+                        points_rhombus = makeRhombus(start_pos, event.pos)
+                        pygame.draw.polygon(canvas, getColor(color_mode), points_rhombus, radius)
+
+                    elif tool == 'line':
+                        pygame.draw.line(canvas, getColor(color_mode), start_pos, event.pos, radius)
+
+                    points = []
+
+        screen.fill((220, 220, 220))
+        screen.blit(canvas, (0, 0))
+
+        i = 0
+        while i < len(points) - 1:
+            drawLineBetween(canvas, points[i], points[i + 1], radius, color_mode, tool)
+            i += 1
+
+        if drawing and start_pos is not None and current_pos is not None:
+            temp_screen = canvas.copy()
+
+            if tool == 'rectangle':
+                rect = makeRect(start_pos, current_pos)
+                pygame.draw.rect(temp_screen, getColor(color_mode), rect, radius)
+
+            elif tool == 'circle':
+                center, rad = makeCircle(start_pos, current_pos)
+                pygame.draw.circle(temp_screen, getColor(color_mode), center, rad, radius)
+
+            elif tool == 'square':
+                square = makeSquare(start_pos, current_pos)
+                pygame.draw.rect(temp_screen, getColor(color_mode), square, radius)
+
+            elif tool == 'right_triangle':
+                points_triangle = makeRightTriangle(start_pos, current_pos)
+                pygame.draw.polygon(temp_screen, getColor(color_mode), points_triangle, radius)
+
+            elif tool == 'equilateral_triangle':
+                points_triangle = makeEquilateralTriangle(start_pos, current_pos)
+                pygame.draw.polygon(temp_screen, getColor(color_mode), points_triangle, radius)
+
+            elif tool == 'rhombus':
+                points_rhombus = makeRhombus(start_pos, current_pos)
+                pygame.draw.polygon(temp_screen, getColor(color_mode), points_rhombus, radius)
+
+            elif tool == 'line':
+                pygame.draw.line(temp_screen, getColor(color_mode), start_pos, current_pos, radius)
+
+            screen.blit(temp_screen, (0, 0))
+
+        if text_active:
+            text_image = text_font.render(text_value + "|", True, getColor(color_mode))
+            screen.blit(text_image, text_pos)
+
+        drawUI(screen, font, tool, color_mode, radius)
+
+        pygame.display.flip()
+        clock.tick(60)
 
 
-def get_color(color_name):
-    if color_name == "red":
-        return (255, 0, 0)
-    if color_name == "green":
-        return (0, 255, 0)
-    if color_name == "blue":
+def getColor(color_mode):
+    if color_mode == 'blue':
         return (0, 0, 255)
-    if color_name == "black":
+    elif color_mode == 'red':
+        return (255, 0, 0)
+    elif color_mode == 'green':
+        return (0, 255, 0)
+    else:
         return (0, 0, 0)
-    return (0, 0, 0)
 
 
-def canvas_pos(pos):
-    return pos[0], pos[1] - TOOLBAR
-
-
-def inside_canvas(pos):
-    return 0 <= pos[0] < WIDTH and TOOLBAR <= pos[1] < HEIGHT
-
-
-def make_rect(start, end):
-    x1 = min(start[0], end[0])
-    y1 = min(start[1], end[1])
-    x2 = max(start[0], end[0])
-    y2 = max(start[1], end[1])
-    return pygame.Rect(x1, y1, x2 - x1, y2 - y1)
-
-
-def make_circle(start, end):
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-    radius = int((dx * dx + dy * dy) ** 0.5)
-    return start, radius
-
-
-def draw_square(surface, start, end, color, size):
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-
-    side = max(abs(dx), abs(dy))
-
-    if dx < 0:
-        x = start[0] - side
+def drawLineBetween(screen, start, end, width, color_mode, tool):
+    if tool == 'eraser':
+        color = (255, 255, 255)
     else:
-        x = start[0]
+        color = getColor(color_mode)
 
-    if dy < 0:
-        y = start[1] - side
-    else:
-        y = start[1]
+    dx = start[0] - end[0]
+    dy = start[1] - end[1]
+    iterations = max(abs(dx), abs(dy))
 
-    rect = pygame.Rect(x, y, side, side)
-    pygame.draw.rect(surface, color, rect, size)
+    if iterations == 0:
+        pygame.draw.circle(screen, color, start, width)
+        return
 
-
-def draw_right_triangle(surface, start, end, color, size):
-    points = [start, (start[0], end[1]), end]
-    pygame.draw.polygon(surface, color, points, size)
-
-
-def draw_equilateral_triangle(surface, start, end, color, size):
-    x1, y1 = start
-    x2, y2 = end
-
-    base = abs(x2 - x1)
-    height = int(base * 0.866)
-
-    if y2 < y1:
-        height = -height
-
-    p1 = (x1, y1)
-    p2 = (x2, y1)
-    p3 = ((x1 + x2) // 2, y1 + height)
-
-    pygame.draw.polygon(surface, color, [p1, p2, p3], size)
+    for i in range(iterations):
+        progress = 1.0 * i / iterations
+        aprogress = 1 - progress
+        x = int(aprogress * start[0] + progress * end[0])
+        y = int(aprogress * start[1] + progress * end[1])
+        pygame.draw.circle(screen, color, (x, y), width)
 
 
-def draw_rhombus(surface, start, end, color, size):
-    x1, y1 = start
-    x2, y2 = end
-
-    mid_x = (x1 + x2) // 2
-    mid_y = (y1 + y2) // 2
-
-    points = [
-        (mid_x, y1),
-        (x2, mid_y),
-        (mid_x, y2),
-        (x1, mid_y)
-    ]
-
-    pygame.draw.polygon(surface, color, points, size)
-
-
-def flood_fill(surface, start_pos, new_color):
+def floodFill(surface, start_pos, new_color):
     width = surface.get_width()
     height = surface.get_height()
 
@@ -138,230 +299,116 @@ def flood_fill(surface, start_pos, new_color):
         stack.append((x, y - 1))
 
 
-def draw_preview(surface, tool, start, end, color, size):
-    if tool == "line":
-        pygame.draw.line(surface, color, start, end, size)
-
-    elif tool == "rectangle":
-        pygame.draw.rect(surface, color, make_rect(start, end), size)
-
-    elif tool == "circle":
-        center, radius = make_circle(start, end)
-        pygame.draw.circle(surface, color, center, radius, size)
-
-    elif tool == "square":
-        draw_square(surface, start, end, color, size)
-
-    elif tool == "right_triangle":
-        draw_right_triangle(surface, start, end, color, size)
-
-    elif tool == "equilateral_triangle":
-        draw_equilateral_triangle(surface, start, end, color, size)
-
-    elif tool == "rhombus":
-        draw_rhombus(surface, start, end, color, size)
+def saveCanvas(canvas):
+    filename = datetime.now().strftime("paint_%Y%m%d_%H%M%S.png")
+    pygame.image.save(canvas, filename)
+    print("Saved:", filename)
 
 
-def draw_ui(screen, font, tool, color_name, brush_size):
-    pygame.draw.rect(screen, (230, 230, 230), (0, 0, WIDTH, TOOLBAR))
-    pygame.draw.line(screen, (150, 150, 150), (0, TOOLBAR), (WIDTH, TOOLBAR), 2)
-
-    text1 = "Colors: R red | G green | B blue | K black"
-    text2 = "Tools: P pencil | E eraser | L line | C circle | T rectangle | S square"
-    text3 = "Y right triangle | U equilateral triangle | H rhombus | F fill | A text"
-    text4 = "Size: 1 small | 2 medium | 3 large | Ctrl+S save | X clear | Esc exit"
-    text5 = "Current: " + tool + " | color: " + color_name + " | size: " + str(brush_size)
-
-    screen.blit(font.render(text1, True, BLACK), (10, 5))
-    screen.blit(font.render(text2, True, BLACK), (10, 20))
-    screen.blit(font.render(text3, True, BLACK), (10, 35))
-    screen.blit(font.render(text4, True, BLACK), (10, 50))
-    screen.blit(font.render(text5, True, BLACK), (10, 65))
+def makeRect(start, end):
+    x1 = min(start[0], end[0])
+    y1 = min(start[1], end[1])
+    x2 = max(start[0], end[0])
+    y2 = max(start[1], end[1])
+    return pygame.Rect(x1, y1, x2 - x1, y2 - y1)
 
 
-def save_canvas(canvas):
-    name = datetime.now().strftime("paint_%Y%m%d_%H%M%S.png")
-    pygame.image.save(canvas, name)
-    print("Saved:", name)
+def makeCircle(start, end):
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    radius = int((dx * dx + dy * dy) ** 0.5)
+    return start, radius
 
 
-def main():
-    pygame.init()
+def makeSquare(start, end):
+    x1, y1 = start
+    x2, y2 = end
 
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("TSIS2 Paint")
+    side = min(abs(x2 - x1), abs(y2 - y1))
 
-    clock = pygame.time.Clock()
-    font = pygame.font.SysFont("Verdana", 14)
-    text_font = pygame.font.SysFont("Arial", 24)
+    if x2 < x1:
+        x = x1 - side
+    else:
+        x = x1
 
-    canvas = pygame.Surface((WIDTH, CANVAS_H))
-    canvas.fill(WHITE)
+    if y2 < y1:
+        y = y1 - side
+    else:
+        y = y1
 
-    tool = "pencil"
-    color_name = "blue"
-    brush_size = 5
+    return pygame.Rect(x, y, side, side)
 
-    drawing = False
-    start_pos = None
-    current_pos = None
-    last_pos = None
 
-    text_active = False
-    text_pos = None
-    text_value = ""
+def makeRightTriangle(start, end):
+    x1, y1 = start
+    x2, y2 = end
+    return [(x1, y1), (x1, y2), (x2, y2)]
 
-    running = True
 
-    while running:
-        ctrl = pygame.key.get_pressed()[pygame.K_LCTRL] or pygame.key.get_pressed()[pygame.K_RCTRL]
-        alt = pygame.key.get_pressed()[pygame.K_LALT] or pygame.key.get_pressed()[pygame.K_RALT]
+def makeEquilateralTriangle(start, end):
+    x1, y1 = start
+    x2, y2 = end
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
+    side = abs(x2 - x1)
+    if side == 0:
+        side = 1
 
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_w and ctrl:
-                    running = False
+    height = int((3 ** 0.5) / 2 * side)
 
-                elif event.key == pygame.K_F4 and alt:
-                    running = False
+    if x2 >= x1:
+        left_x = x1
+        right_x = x1 + side
+    else:
+        left_x = x1 - side
+        right_x = x1
 
-                elif event.key == pygame.K_s and ctrl:
-                    save_canvas(canvas)
+    base_y = y2
+    top_x = (left_x + right_x) // 2
+    top_y = base_y - height
 
-                elif text_active:
-                    if event.key == pygame.K_RETURN:
-                        color = get_color(color_name)
-                        rendered = text_font.render(text_value, True, color)
-                        canvas.blit(rendered, text_pos)
-                        text_active = False
-                        text_value = ""
+    return [(left_x, base_y), (right_x, base_y), (top_x, top_y)]
 
-                    elif event.key == pygame.K_ESCAPE:
-                        text_active = False
-                        text_value = ""
 
-                    elif event.key == pygame.K_BACKSPACE:
-                        text_value = text_value[:-1]
+def makeRhombus(start, end):
+    x1, y1 = start
+    x2, y2 = end
 
-                    else:
-                        text_value += event.unicode
+    center_x = (x1 + x2) // 2
+    center_y = (y1 + y2) // 2
 
-                else:
-                    if event.key == pygame.K_ESCAPE:
-                        running = False
+    half_width = abs(x2 - x1) // 2
+    half_height = abs(y2 - y1) // 2
 
-                    elif event.key == pygame.K_r:
-                        color_name = "red"
-                    elif event.key == pygame.K_g:
-                        color_name = "green"
-                    elif event.key == pygame.K_b:
-                        color_name = "blue"
-                    elif event.key == pygame.K_k:
-                        color_name = "black"
+    return [
+        (center_x, center_y - half_height),
+        (center_x + half_width, center_y),
+        (center_x, center_y + half_height),
+        (center_x - half_width, center_y)
+    ]
 
-                    elif event.key == pygame.K_p:
-                        tool = "pencil"
-                    elif event.key == pygame.K_e:
-                        tool = "eraser"
-                    elif event.key == pygame.K_l:
-                        tool = "line"
-                    elif event.key == pygame.K_c:
-                        tool = "circle"
-                    elif event.key == pygame.K_t:
-                        tool = "rectangle"
-                    elif event.key == pygame.K_s:
-                        tool = "square"
-                    elif event.key == pygame.K_y:
-                        tool = "right_triangle"
-                    elif event.key == pygame.K_u:
-                        tool = "equilateral_triangle"
-                    elif event.key == pygame.K_h:
-                        tool = "rhombus"
-                    elif event.key == pygame.K_f:
-                        tool = "fill"
-                    elif event.key == pygame.K_a:
-                        tool = "text"
 
-                    elif event.key == pygame.K_1:
-                        brush_size = 2
-                    elif event.key == pygame.K_2:
-                        brush_size = 5
-                    elif event.key == pygame.K_3:
-                        brush_size = 10
+def drawUI(screen, font, tool, color_mode, radius):
+    pygame.draw.rect(screen, (230, 230, 230), (0, 0, 900, 80))
+    pygame.draw.line(screen, (150, 150, 150), (0, 80), (900, 80), 2)
 
-                    elif event.key == pygame.K_x:
-                        canvas.fill(WHITE)
+    line1 = "Colors: 1-black  2-red  3-green  4-blue"
+    line2 = "Tools: P-pen  E-eraser  L-line  C-circle  T-rectangle  S-square"
+    line3 = "R-right triangle  Q-equilateral triangle  H-rhombus  F-fill  A-text"
+    line4 = "Brush: 5-small  6-medium  7-large  +/- custom   Ctrl+S save   X clear   ESC exit"
 
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1 and inside_canvas(event.pos):
-                    pos = canvas_pos(event.pos)
+    text1 = font.render(line1, True, (0, 0, 0))
+    text2 = font.render(line2, True, (0, 0, 0))
+    text3 = font.render(line3, True, (0, 0, 0))
+    text4 = font.render(line4, True, (0, 0, 0))
 
-                    if tool == "fill":
-                        flood_fill(canvas, pos, get_color(color_name))
+    status = "Current tool: " + tool + " | Current color: " + color_mode + " | Size: " + str(radius)
+    text5 = font.render(status, True, (0, 0, 0))
 
-                    elif tool == "text":
-                        text_active = True
-                        text_pos = pos
-                        text_value = ""
-
-                    else:
-                        drawing = True
-                        start_pos = pos
-                        current_pos = pos
-                        last_pos = pos
-
-            elif event.type == pygame.MOUSEMOTION:
-                if drawing and inside_canvas(event.pos):
-                    current_pos = canvas_pos(event.pos)
-
-                    if tool == "pencil" or tool == "eraser":
-                        if tool == "eraser":
-                            color = WHITE
-                        else:
-                            color = get_color(color_name)
-
-                        pygame.draw.line(canvas, color, last_pos, current_pos, brush_size)
-                        pygame.draw.circle(canvas, color, current_pos, brush_size // 2)
-                        last_pos = current_pos
-
-            elif event.type == pygame.MOUSEBUTTONUP:
-                if event.button == 1 and drawing:
-                    drawing = False
-
-                    if inside_canvas(event.pos):
-                        end_pos = canvas_pos(event.pos)
-                        color = get_color(color_name)
-
-                        if tool != "pencil" and tool != "eraser":
-                            draw_preview(canvas, tool, start_pos, end_pos, color, brush_size)
-
-                    start_pos = None
-                    current_pos = None
-                    last_pos = None
-
-        screen.fill(GRAY)
-        screen.blit(canvas, (0, TOOLBAR))
-
-        if drawing and start_pos is not None and current_pos is not None:
-            if tool != "pencil" and tool != "eraser":
-                temp = canvas.copy()
-                draw_preview(temp, tool, start_pos, current_pos, get_color(color_name), brush_size)
-                screen.blit(temp, (0, TOOLBAR))
-
-        if text_active:
-            color = get_color(color_name)
-            rendered = text_font.render(text_value + "|", True, color)
-            screen.blit(rendered, (text_pos[0], text_pos[1] + TOOLBAR))
-
-        draw_ui(screen, font, tool, color_name, brush_size)
-
-        pygame.display.flip()
-        clock.tick(60)
-
-    pygame.quit()
+    screen.blit(text1, (10, 5))
+    screen.blit(text2, (10, 23))
+    screen.blit(text3, (10, 41))
+    screen.blit(text4, (10, 59))
+    screen.blit(text5, (520, 5))
 
 
 main()
